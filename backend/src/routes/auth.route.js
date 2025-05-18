@@ -26,6 +26,13 @@ router.post("/logout", logout);
 // Hoàn thành thông tin người dùng
 router.post("/onboarding", protectRoute, onboard);
 
+router.get("/me", protectRoute, (req, res) => {
+  res.status(200).json({
+    success: true,
+    user: req.user,
+  });
+});
+
 // Gửi mã xác minh
 router.post("/send-verification", protectRoute, sendEmailVerification);
 
