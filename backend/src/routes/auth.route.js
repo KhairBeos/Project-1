@@ -9,6 +9,8 @@ import {
   sendEmailVerification,
   verifyEmail,
   resendVerificationEmail,
+  changePassword,
+  updateProfile,
 } from "../controllers/auth.controller.js";
 import { protectRoute } from "../middleware/auth.middleware.js";
 
@@ -41,6 +43,12 @@ router.post("/verify-email", protectRoute, verifyEmail);
 
 // Gửi lại mã xác minh
 router.post("/resend-verification", resendVerificationEmail);
+
+// Đổi mật khẩu
+router.post("/change-password", protectRoute, changePassword);
+
+// Cập nhật thông tin cá nhân
+router.put("/update-profile", protectRoute, updateProfile);
 
 // Bắt đầu login với Google
 router.get(

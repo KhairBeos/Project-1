@@ -52,6 +52,12 @@ const userSchema = new mongoose.Schema(
 
     friends: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }], // Danh sách bạn bè
     groups: [{ type: mongoose.Schema.Types.ObjectId, ref: "Group" }], // Danh sách nhóm
+    mutedGroups: [{ type: mongoose.Schema.Types.ObjectId, ref: "Group" }], // Danh sách group (bao gồm cả 1-1) user đã tắt thông báo
+    blockedUsers: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }], // Danh sách user bị chặn (block)
+    blockedGroups: [{ type: mongoose.Schema.Types.ObjectId, ref: "Group" }], // Danh sách group mà user đã chặn (không muốn tham gia/nhận tin nhắn từ group đó)
+
+    twoFactorEnabled: { type: Boolean, default: false }, // Đã bật 2FA chưa
+    twoFactorSecret: { type: String, default: "" }, // Secret dùng cho Google Authenticator
   },
   { timestamps: true } // Tự động thêm createdAt và updatedAt
 );

@@ -137,30 +137,34 @@ export async function login(req, res) {
       return res.status(401).json({ message: "Invalid account or password" });
     }
 
-    // Tạo JWT token
+    // Nếu user đã bật 2FA thì trả về trạng thái yêu cầu nhập OTP, KHÔNG trả về token
+    if (user.twoFactorEnabled) {
+      return res.status(200).json({
+        success: true,
+        require2FA: true,
+        userId: user._id,
+        message: "Vui lòng nhập mã OTP từ Google Authenticator",
+      });
+    }
+
+    // Nếu chưa bật 2FA, đăng nhập như cũ
     const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET_KEY, {
       expiresIn: "7d",
     });
-
-    // Tạo Stream token
     const streamToken = generateStreamToken(user._id.toString());
-
-    // Lưu token vào cookie
     res.cookie("jwt", token, {
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 ngày
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "strict",
     });
-
-    // Ẩn mật khẩu khi trả về
     const userWithoutPassword = { ...user.toObject() };
     delete userWithoutPassword.password;
-
     res.status(200).json({
       success: true,
       user: userWithoutPassword,
       streamToken,
+      token,
     });
   } catch (error) {
     console.error("Error in login controller", error);
@@ -247,7 +251,57 @@ export async function onboard(req, res) {
   }
 }
 
+// ==== Đổi mật khẩu ====
+export async function changePassword(req, res) {
+  try {
+    const userId = req.user._id;
+    const { oldPassword, newPassword } = req.body;
+    if (!oldPassword || !newPassword) {
+      return res.status(400).json({ message: "Missing old or new password" });
+    }
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ message: "User not found" });
+    const isMatch = await user.matchPassword(oldPassword);
+    if (!isMatch)
+      return res.status(400).json({ message: "Old password is incorrect" });
+    user.password = newPassword;
+    await user.save();
+    res.status(200).json({ message: "Password changed successfully" });
+  } catch (error) {
+    res.status(500).json({ message: "Internal server error" });
+  }
+}
 
+// ==== Cập nhật thông tin người dùng ====
+export async function updateProfile(req, res) {
+  try {
+    const userId = req.user._id;
+    const updateFields = (({
+      fullName,
+      bio,
+      profilePic,
+      nationality,
+      location,
+      dateOfBirth,
+      gender,
+    }) => ({
+      fullName,
+      bio,
+      profilePic,
+      nationality,
+      location,
+      dateOfBirth,
+      gender,
+    }))(req.body);
+    const user = await User.findByIdAndUpdate(userId, updateFields, {
+      new: true,
+    });
+    if (!user) return res.status(404).json({ message: "User not found" });
+    res.status(200).json({ message: "Profile updated successfully", user });
+  } catch (error) {
+    res.status(500).json({ message: "Internal server error" });
+  }
+}
 
 // ==== Xác thực tài khoản Email ====
 
@@ -286,7 +340,11 @@ export const verifyEmail = async (req, res) => {
     const user = await User.findById(req.user._id);
 
     // Kiểm tra mã xác minh
-    if (!user || user.verifyCode !== code || Date.now() > user.verifyCodeExpiry) {
+    if (
+      !user ||
+      user.verifyCode !== code ||
+      Date.now() > user.verifyCodeExpiry
+    ) {
       return res.status(400).json({ message: "Invalid or expired code" });
     }
 
@@ -326,7 +384,9 @@ export const resendVerificationEmail = async (req, res) => {
       return res.status(200).json({ message: "New verification code sent" });
     }
 
-    return res.status(200).json({ message: "Verification code is still valid" });
+    return res
+      .status(200)
+      .json({ message: "Verification code is still valid" });
   } catch (error) {
     console.error("Error resending verification email:", error);
     res.status(500).json({ message: "Internal Server Error" });
