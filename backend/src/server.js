@@ -1,6 +1,7 @@
 import express from "express";
 import "dotenv/config";
 import cookieParser from "cookie-parser";
+import cors from "cors";
 import passport from "passport";
 import session from "express-session";
 import http from "http";
@@ -23,11 +24,17 @@ connectDB();
 // Middleware
 app.use(express.json());
 app.use(cookieParser());
+app.use(
+  cors({
+    origin: "http://localhost:5173", // Địa chỉ frontend
+    credentials: true, // Cho phép gửi cookie từ frontend
+  })
+);
 
 // Session
 app.use(
   session({
-    secret: process.env.SESSION_SECRET, 
+    secret: process.env.SESSION_SECRET,
     resave: false,
     saveUninitialized: false,
     cookie: {
