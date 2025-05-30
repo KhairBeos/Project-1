@@ -29,9 +29,14 @@ router.post("/logout", logout);
 router.post("/onboarding", protectRoute, onboard);
 
 router.get("/me", protectRoute, (req, res) => {
+  const user = req.user?.toObject ? req.user.toObject() : req.user;
+  if (user) {
+    user.isEmailVerified = user.isVerified;
+    delete user.password;
+  }
   res.status(200).json({
     success: true,
-    user: req.user,
+    user,
   });
 });
 
@@ -42,7 +47,7 @@ router.post("/send-verification", protectRoute, sendEmailVerification);
 router.post("/verify-email", protectRoute, verifyEmail);
 
 // Gửi lại mã xác minh
-router.post("/resend-verification", resendVerificationEmail);
+router.post("/resend-verification", protectRoute, resendVerificationEmail);
 
 // Đổi mật khẩu
 router.post("/change-password", protectRoute, changePassword);
