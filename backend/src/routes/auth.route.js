@@ -11,6 +11,9 @@ import {
   resendVerificationEmail,
   changePassword,
   updateProfile,
+  sendForgotPasswordCode,
+  verifyForgotPasswordCode,
+  resetPasswordWithCode,
 } from "../controllers/auth.controller.js";
 import { protectRoute } from "../middleware/auth.middleware.js";
 
@@ -75,5 +78,10 @@ router.get(
     res.redirect(`http://localhost:5173/login/success?token=${token}`); // Redirect về frontend với token JWT
   }
 );
+
+// Quên mật khẩu bằng mã xác nhận OTP
+router.post("/forgot-password", sendForgotPasswordCode);
+router.post("/forgot-password/verify", verifyForgotPasswordCode);
+router.post("/forgot-password/reset", resetPasswordWithCode);
 
 export default router;

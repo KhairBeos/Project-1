@@ -144,6 +144,11 @@ export async function login(req, res) {
       return res.status(401).json({ message: "Invalid account or password" });
     }
 
+    // Nếu user đã bật 2FA thì trả về require2FA, không trả token đăng nhập
+    if (user.twoFactorEnabled) {
+      return res.status(200).json({ require2FA: true });
+    }
+
     // Tạo JWT token
     const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET_KEY, {
       expiresIn: "7d",
@@ -259,7 +264,7 @@ export async function onboard(req, res) {
 // ==== Xác thực tài khoản Email ====
 
 // ==== Gửi mã xác minh ====
-export const sendEmailVerification = async (req, res) => {
+export async function sendEmailVerification(req, res) {
   const { email } = req.body;
 
   try {
@@ -283,10 +288,10 @@ export const sendEmailVerification = async (req, res) => {
     console.error("Error sending verification code:", error);
     res.status(500).json({ message: "Internal Server Error" });
   }
-};
+}
 
 // ==== Xác minh mã ====
-export const verifyEmail = async (req, res) => {
+export async function verifyEmail(req, res) {
   const { code } = req.body;
 
   try {
@@ -312,7 +317,7 @@ export const verifyEmail = async (req, res) => {
     console.error("Error verifying email:", error);
     res.status(500).json({ message: "Internal Server Error" });
   }
-};
+}
 
 // ==== Gửi lại mã xác minh ====
 export const resendVerificationEmail = async (req, res) => {
@@ -321,16 +326,29 @@ export const resendVerificationEmail = async (req, res) => {
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
-    // Kiểm tra nếu mã xác minh đã hết hạn
-    if (Date.now() > user.verifyCodeExpiry) {
+    // Giới hạn gửi lại mã: 60s/lần
+    if (user.verifyCodeExpiry && user.verifyCode) {
+      const now = Date.now();
+      const lastSent = user.verifyCodeExpiry - 5 * 60 * 1000;
+      if (now - lastSent < 60 * 1000) {
+        return res.status(429).json({
+          message:
+            "Bạn vừa yêu cầu mã, vui lòng đợi 60 giây trước khi gửi lại.",
+        });
+      }
+    }
+    // Kiểm tra nếu mã xác minh đã hết hạn hoặc chưa có mã
+    if (!user.verifyCode || Date.now() > user.verifyCodeExpiry) {
       const code = Math.floor(100000 + Math.random() * 900000); // 6 chữ số mới
       user.verifyCode = code;
       user.verifyCodeExpiry = Date.now() + 5 * 60 * 1000; // Gia hạn thêm 5 phút
       await user.save();
       // Gửi lại mã xác minh qua email
-      await sendVerificationEmail(user.email, code);
+      await sendVerificationEmail(user.email, user.verifyCode);
       return res.status(200).json({ message: "New verification code sent" });
     }
+    // Nếu mã vẫn còn hiệu lực, chỉ gửi lại email
+    await sendVerificationEmail(user.email, user.verifyCode);
     return res
       .status(200)
       .json({ message: "Verification code is still valid" });
@@ -397,6 +415,91 @@ export async function updateProfile(req, res) {
     res.status(200).json({ success: true, user: userWithoutPassword });
   } catch (error) {
     console.error("Error updating profile:", error);
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+}
+
+// ==== Quên mật khẩu: Gửi mã xác nhận về email === =
+export async function sendForgotPasswordCode(req, res) {
+  try {
+    const { account } = req.body;
+    if (!account)
+      return res.status(400).json({ message: "Tài khoản là bắt buộc" });
+    const user = await User.findOne({ account });
+    if (!user)
+      return res.status(404).json({ message: "Tài khoản không tồn tại" });
+    const email = user.email;
+    if (!email)
+      return res.status(400).json({ message: "Tài khoản này chưa có email" });
+    // Giới hạn gửi lại mã: 60s/lần
+    if (user.resetPasswordCodeExpiry && user.resetPasswordCode) {
+      const now = Date.now();
+      const lastSent = user.resetPasswordCodeExpiry - 10 * 60 * 1000;
+      if (now - lastSent < 60 * 1000) {
+        return res.status(429).json({
+          message:
+            "Bạn vừa yêu cầu mã, vui lòng đợi 60 giây trước khi gửi lại.",
+        });
+      }
+    }
+    // Sinh mã 6 số
+    const code = Math.floor(100000 + Math.random() * 900000);
+    user.resetPasswordCode = code;
+    user.resetPasswordCodeExpiry = Date.now() + 10 * 60 * 1000; // 10 phút
+    await user.save();
+    await sendVerificationEmail(email, code); // Tái sử dụng hàm gửi mã
+    res.status(200).json({
+      message: "Đã gửi mã xác nhận về email đã đăng ký của tài khoản",
+      email, // trả về email thực tế để frontend dùng cho các bước tiếp theo
+    });
+  } catch (error) {
+    console.error("Error sendForgotPasswordCode:", error);
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+}
+
+// ==== Xác nhận mã quên mật khẩu === =
+export async function verifyForgotPasswordCode(req, res) {
+  try {
+    const { email, code } = req.body;
+    const user = await User.findOne({ email });
+    if (
+      !user ||
+      user.resetPasswordCode != code ||
+      Date.now() > user.resetPasswordCodeExpiry
+    ) {
+      return res
+        .status(400)
+        .json({ message: "Mã xác nhận không đúng hoặc đã hết hạn" });
+    }
+    // Đánh dấu đã xác nhận, cho phép đặt lại mật khẩu
+    user.resetPasswordCode = null;
+    user.resetPasswordCodeExpiry = null;
+    user.canResetPassword = true;
+    await user.save();
+    res.status(200).json({ message: "Xác nhận thành công" });
+  } catch (error) {
+    console.error("Error verifyForgotPasswordCode:", error);
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+}
+
+// ==== Đặt lại mật khẩu mới sau khi xác nhận === =
+export async function resetPasswordWithCode(req, res) {
+  try {
+    const { email, newPassword } = req.body;
+    const user = await User.findOne({ email });
+    if (!user || !user.canResetPassword) {
+      return res
+        .status(400)
+        .json({ message: "Bạn chưa xác nhận mã hoặc mã đã hết hạn" });
+    }
+    user.password = newPassword;
+    user.canResetPassword = false;
+    await user.save();
+    res.status(200).json({ message: "Đặt lại mật khẩu thành công" });
+  } catch (error) {
+    console.error("Error resetPasswordWithCode:", error);
     res.status(500).json({ message: "Internal Server Error" });
   }
 }

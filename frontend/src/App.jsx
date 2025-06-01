@@ -8,6 +8,18 @@ import CallPage from "./pages/CallPage.jsx";
 import NotificationsPage from "./pages/NotificationsPage.jsx";
 import OnboardingPage from "./pages/OnboardingPage.jsx";
 import EmailVerificationPage from "./pages/EmailVerificationPage.jsx";
+import ProfilePage from "./pages/ProfilePage.jsx";
+import ChangePasswordPage from "./pages/ChangePasswordPage.jsx";
+import BlockedUsersPage from "./pages/BlockedUsersPage.jsx";
+import FriendsPage from "./pages/FriendsPage.jsx";
+import FriendRequestsPage from "./pages/FriendRequestsPage.jsx";
+import GroupsPage from "./pages/GroupsPage.jsx";
+import GroupDetailPage from "./pages/GroupDetailPage.jsx";
+import UserSearchPage from "./pages/UserSearchPage.jsx";
+import ChatHistoryPage from "./pages/ChatHistoryPage.jsx";
+import DirectChatPage from "./pages/DirectChatPage.jsx";
+import TwoFAPage from "./pages/TwoFAPage.jsx";
+import ForgotPasswordOTPFlowPage from "./pages/ForgotPasswordOTPFlowPage.jsx";
 
 import { Toaster } from "react-hot-toast";
 import PageLoader from "./components/PageLoader.jsx";
@@ -51,11 +63,31 @@ const App = () => {
         />
         <Route
           path="/signup"
-          element={!isAuthenticated ? <SignUpPage /> : <Navigate to="/" />}
+          element={
+            !isAuthenticated ? (
+              <SignUpPage />
+            ) : !isEmailVerified ? (
+              <Navigate to="/verify-email" />
+            ) : !isOnboarded ? (
+              <Navigate to="/onboarding" />
+            ) : (
+              <Navigate to="/chat" />
+            )
+          }
         />
         <Route
           path="/login"
-          element={!isAuthenticated ? <LoginPage /> : <Navigate to="/" />}
+          element={
+            !isAuthenticated ? (
+              <LoginPage />
+            ) : !isEmailVerified ? (
+              <Navigate to="/verify-email" />
+            ) : !isOnboarded ? (
+              <Navigate to="/onboarding" />
+            ) : (
+              <Navigate to="/chat" />
+            )
+          }
         />
         <Route
           path="/notifications"
@@ -106,6 +138,115 @@ const App = () => {
               <Navigate to="/" />
             )
           }
+        />
+        <Route
+          path="/profile"
+          element={
+            isAuthenticated && isEmailVerified && isOnboarded ? (
+              <ProfilePage />
+            ) : (
+              <Navigate to="/login" />
+            )
+          }
+        />
+        <Route
+          path="/change-password"
+          element={
+            isAuthenticated && isEmailVerified && isOnboarded ? (
+              <ChangePasswordPage />
+            ) : (
+              <Navigate to="/login" />
+            )
+          }
+        />
+        <Route
+          path="/blocked-users"
+          element={
+            isAuthenticated && isEmailVerified && isOnboarded ? (
+              <BlockedUsersPage />
+            ) : (
+              <Navigate to="/login" />
+            )
+          }
+        />
+        <Route
+          path="/friends"
+          element={
+            isAuthenticated && isEmailVerified && isOnboarded ? (
+              <FriendsPage />
+            ) : (
+              <Navigate to="/login" />
+            )
+          }
+        />
+        <Route
+          path="/friend-requests"
+          element={
+            isAuthenticated && isEmailVerified && isOnboarded ? (
+              <FriendRequestsPage />
+            ) : (
+              <Navigate to="/login" />
+            )
+          }
+        />
+        <Route
+          path="/groups"
+          element={
+            isAuthenticated && isEmailVerified && isOnboarded ? (
+              <GroupsPage />
+            ) : (
+              <Navigate to="/login" />
+            )
+          }
+        />
+        <Route
+          path="/groups/:id"
+          element={
+            isAuthenticated && isEmailVerified && isOnboarded ? (
+              <GroupDetailPage />
+            ) : (
+              <Navigate to="/login" />
+            )
+          }
+        />
+        <Route
+          path="/user-search"
+          element={
+            isAuthenticated && isEmailVerified && isOnboarded ? (
+              <UserSearchPage />
+            ) : (
+              <Navigate to="/login" />
+            )
+          }
+        />
+        <Route
+          path="/chat-history"
+          element={
+            isAuthenticated && isEmailVerified && isOnboarded ? (
+              <ChatHistoryPage />
+            ) : (
+              <Navigate to="/login" />
+            )
+          }
+        />
+        <Route
+          path="/direct/:id"
+          element={
+            isAuthenticated && isEmailVerified && isOnboarded ? (
+              <DirectChatPage />
+            ) : (
+              <Navigate to="/login" />
+            )
+          }
+        />
+        <Route path="/2fa" element={<TwoFAPage />} />
+        <Route
+          path="/forgot-password-otp"
+          element={<ForgotPasswordOTPFlowPage />}
+        />
+        <Route
+          path="*"
+          element={<ErrorPage message="404 - Trang không tồn tại!" />}
         />
       </Routes>
 

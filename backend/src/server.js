@@ -11,7 +11,7 @@ import authRoutes from "./routes/auth.route.js";
 import userRoutes from "./routes/user.route.js";
 import chatRoutes from "./routes/chat.route.js";
 import groupRoutes from "./routes/group.route.js";
-import twofaRoutes from "./routes/twofa.route.js";
+import twofaNumberRoutes from "./routes/twofa.number.route.js";
 
 import { connectDB } from "./lib/db.js";
 import "./config/passport.js";
@@ -54,7 +54,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/chat", chatRoutes);
 app.use("/api/groups", groupRoutes);
-app.use("/api/2fa", twofaRoutes);
+app.use("/api/2fa", twofaNumberRoutes); // Chỉ giữ lại route 2FA số điện thoại
 
 // Khởi động server với http + socket.io
 const server = http.createServer(app);

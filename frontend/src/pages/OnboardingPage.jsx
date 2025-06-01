@@ -17,6 +17,7 @@ import {
 import { onboard } from "../lib/api.js";
 import { useNavigate } from "react-router-dom";
 import useAuthUser from "../hooks/useAuthUser.js";
+import axios from "axios";
 
 const initialState = (authUser) => ({
   fullName: authUser?.fullName || "",
@@ -39,6 +40,7 @@ const OnboardingPage = () => {
   const [errors, setErrors] = useState({});
   const [touched, setTouched] = useState({});
   const [focusedField, setFocusedField] = useState("");
+  const [uploading, setUploading] = useState(false);
   const navigate = useNavigate();
 
   // Validation functions
@@ -202,6 +204,26 @@ const OnboardingPage = () => {
     }
   };
 
+  const handleFileChange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("upload_preset", "Chat_App");
+      // Cloudinary API endpoint
+      const url = "https://api.cloudinary.com/v1_1/dol5cjvlm/image/upload";
+      const res = await axios.post(url, formData);
+      setFormState((prev) => ({ ...prev, profilePic: res.data.secure_url }));
+      setErrors((prev) => ({ ...prev, profilePic: "" }));
+    } catch (err) {
+      setErrors((prev) => ({ ...prev, profilePic: "Upload ảnh thất bại!" }));
+    } finally {
+      setUploading(false);
+    }
+  };
+
   const getInputClassName = (fieldName) => {
     const baseClass =
       "w-full px-4 py-3 bg-white/50 border-2 border-gray-200 rounded-xl focus:border-purple-500 focus:outline-none transition-all duration-300 placeholder-gray-400";
@@ -256,7 +278,6 @@ const OnboardingPage = () => {
                   <User className="w-5 h-5 text-purple-600" />
                   Thông tin cá nhân
                 </h3>
-
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {/* Full Name */}
                   <div className="space-y-2">
@@ -297,7 +318,6 @@ const OnboardingPage = () => {
                     </p>
                   </div>
                 </div>
-
                 {/* Bio */}
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
@@ -332,13 +352,14 @@ const OnboardingPage = () => {
                     </p>
                   </div>
                 </div>
-
                 {/* Profile Picture */}
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
                     <Camera className="w-4 h-4" />
-                    Ảnh đại diện (URL)
+                    Ảnh đại diện
                   </label>
+
+                  {/* URL Input */}
                   <div
                     className={`relative transition-all duration-300 ${
                       focusedField === "profilePic" ? "scale-[1.02]" : ""
@@ -355,14 +376,152 @@ const OnboardingPage = () => {
                       placeholder="https://example.com/avatar.jpg"
                     />
                   </div>
+
+                  {/* Upload Buttons Row */}
+                  <div className="flex gap-3">
+                    {/* File Upload Button */}
+                    <div className="relative flex-1">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleFileChange}
+                        disabled={uploading}
+                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
+                        id="avatar-upload"
+                      />
+                      <label
+                        htmlFor="avatar-upload"
+                        className={`flex items-center justify-center gap-2 w-full px-4 py-3 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-medium rounded-xl transition-all duration-300 transform hover:scale-[1.02] hover:shadow-lg cursor-pointer ${
+                          uploading ? "opacity-70 cursor-not-allowed" : ""
+                        }`}
+                      >
+                        {uploading ? (
+                          <>
+                            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                            <span className="text-sm">Đang tải...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Camera className="w-4 h-4" />
+                            <span className="text-sm">Tải ảnh lên</span>
+                          </>
+                        )}
+                      </label>
+                    </div>
+
+                    {/* Random Avatar Button */}
+                    <button
+                      type="button"
+                      className="flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white font-medium rounded-xl transition-all duration-300 transform hover:scale-[1.02] hover:shadow-lg disabled:opacity-70 disabled:cursor-not-allowed"
+                      disabled={uploading}
+                      onClick={() => {
+                        const randomNum = Math.floor(Math.random() * 100) + 1;
+                        setFormState((prev) => ({
+                          ...prev,
+                          profilePic: `https://avatar.iran.liara.run/public/${randomNum}.png`,
+                        }));
+                        setErrors((prev) => ({ ...prev, profilePic: "" }));
+                      }}
+                      title="Tạo avatar ngẫu nhiên"
+                    >
+                      <svg
+                        className="w-4 h-4"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                        />
+                      </svg>
+                      <span className="text-sm">Random</span>
+                    </button>
+                  </div>
+
+                  {/* Preview Section */}
+                  {formState.profilePic && isValidUrl(formState.profilePic) && (
+                    <div className="mt-4 p-4 bg-gray-50/80 rounded-xl border border-gray-200">
+                      <div className="flex items-center gap-4">
+                        <div className="relative">
+                          <img
+                            src={formState.profilePic}
+                            alt="avatar preview"
+                            className="w-16 h-16 rounded-full object-cover border-2 border-white shadow-lg"
+                          />
+                          <div className="absolute -top-1 -right-1 w-5 h-5 bg-green-500 rounded-full flex items-center justify-center">
+                            <CheckCircle className="w-3 h-3 text-white" />
+                          </div>
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-sm font-medium text-gray-700">
+                            Xem trước ảnh đại diện
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            Ảnh sẽ hiển thị như thế này trong chat
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setFormState((prev) => ({
+                              ...prev,
+                              profilePic: "",
+                            }));
+                            setErrors((prev) => ({ ...prev, profilePic: "" }));
+                          }}
+                          className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all duration-200"
+                          title="Xóa ảnh"
+                        >
+                          <XCircle className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Error Message */}
                   {errors.profilePic && touched.profilePic && (
-                    <p className="text-red-500 text-sm flex items-center gap-1">
+                    <p className="text-red-500 text-sm flex items-center gap-1 mt-2">
                       <XCircle className="w-3 h-3" />
                       {errors.profilePic}
                     </p>
                   )}
-                </div>
 
+                  {/* Helper Text */}
+                  <div className="text-xs text-gray-500 bg-blue-50/50 rounded-lg p-3 border border-blue-100">
+                    <div className="flex items-start gap-2">
+                      <svg
+                        className="w-4 h-4 text-blue-500 mt-0.5 flex-shrink-0"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                        />
+                      </svg>
+                      <div>
+                        <p className="font-medium text-blue-700 mb-1">
+                          Hướng dẫn:
+                        </p>
+                        <ul className="space-y-1 text-blue-600">
+                          <li>
+                            • Nhập URL ảnh trực tiếp hoặc tải ảnh từ thiết bị
+                          </li>
+                          <li>• Nhấn "Random" để tạo avatar ngẫu nhiên</li>
+                          <li>
+                            • Ảnh nên có tỷ lệ vuông (1:1) để hiển thị đẹp nhất
+                          </li>
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {/* Nationality */}
                   <div className="space-y-2">
@@ -421,7 +580,6 @@ const OnboardingPage = () => {
                     </div>
                   </div>
                 </div>
-
                 {/* Date of Birth */}
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
@@ -611,17 +769,34 @@ const OnboardingPage = () => {
         </div>
       </div>
 
-      {/* RIGHT SIDE - ILLUSTRATION */}
+      {/* RIGHT SIDE - ENHANCED ILLUSTRATION */}
       <div className="hidden lg:flex lg:w-[45%] items-center justify-center min-h-screen relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-br from-purple-600 via-indigo-600 to-blue-700"></div>
 
-        {/* Animated background elements */}
+        {/* Enhanced animated background elements */}
         <div className="absolute inset-0">
-          <div className="absolute top-20 left-20 w-16 h-16 bg-white/10 rounded-full animate-pulse"></div>
+          {/* Top section floating elements */}
+          <div className="absolute top-10 left-10 w-16 h-16 bg-white/10 rounded-full animate-pulse"></div>
+          <div
+            className="absolute top-16 right-20 w-12 h-12 bg-white/15 rounded-full animate-bounce"
+            style={{ animationDelay: "0.5s" }}
+          ></div>
+          <div
+            className="absolute top-32 left-1/3 w-8 h-8 bg-white/20 rounded-full animate-pulse"
+            style={{ animationDelay: "1s" }}
+          ></div>
+
+          {/* Middle section elements */}
           <div
             className="absolute top-40 right-32 w-8 h-8 bg-white/20 rounded-full animate-bounce"
             style={{ animationDelay: "0.5s" }}
           ></div>
+          <div
+            className="absolute top-1/2 left-8 w-10 h-10 bg-white/10 rounded-full animate-pulse"
+            style={{ animationDelay: "2s" }}
+          ></div>
+
+          {/* Bottom section floating elements */}
           <div
             className="absolute bottom-40 left-16 w-12 h-12 bg-white/15 rounded-full animate-pulse"
             style={{ animationDelay: "1s" }}
@@ -631,14 +806,43 @@ const OnboardingPage = () => {
             style={{ animationDelay: "1.5s" }}
           ></div>
           <div
-            className="absolute top-1/2 left-8 w-10 h-10 bg-white/10 rounded-full animate-pulse"
-            style={{ animationDelay: "2s" }}
+            className="absolute bottom-16 left-1/4 w-14 h-14 bg-white/10 rounded-full animate-pulse"
+            style={{ animationDelay: "2.5s" }}
+          ></div>
+          <div
+            className="absolute bottom-10 right-1/3 w-10 h-10 bg-white/15 rounded-full animate-bounce"
+            style={{ animationDelay: "3s" }}
           ></div>
         </div>
 
-        <div className="relative z-10 text-center text-white p-8 max-w-md">
-          {/* Main content */}
-          <div className="mb-12">
+        <div className="relative z-10 text-center text-white p-8 max-w-md h-full flex flex-col justify-center">
+          {/* TOP SECTION - Welcome Message */}
+          <div className="mb-24">
+            <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-6 mb-6 transform hover:scale-105 transition-all duration-300">
+              <div className="flex items-center justify-center gap-3 mb-3">
+                <div className="w-8 h-8 bg-gradient-to-r from-yellow-400 to-orange-400 rounded-full flex items-center justify-center">
+                  <Star className="w-4 h-4 text-white" />
+                </div>
+                <h3 className="text-lg font-semibold">Bước cuối cùng!</h3>
+              </div>
+              <p className="text-white/80 text-sm">
+                Chỉ còn một bước nữa là bạn có thể bắt đầu trò chuyện với mọi
+                người
+              </p>
+            </div>
+
+            {/* Progress indicator */}
+            <div className="flex items-center justify-center gap-2 mb-4">
+              <div className="w-3 h-3 bg-white rounded-full"></div>
+              <div className="w-8 h-1 bg-white rounded-full"></div>
+              <div className="w-3 h-3 bg-white rounded-full"></div>
+              <div className="w-8 h-1 bg-white rounded-full"></div>
+              <div className="w-3 h-3 bg-white/50 border-2 border-white rounded-full"></div>
+            </div>
+          </div>
+
+          {/* MIDDLE SECTION - Main content */}
+          <div className="mb-24">
             <div className="relative mb-8">
               <div className="w-32 h-32 mx-auto bg-white/10 backdrop-blur-lg rounded-full flex items-center justify-center mb-6 shadow-2xl">
                 <User className="w-16 h-16 text-white" />
@@ -651,6 +855,7 @@ const OnboardingPage = () => {
                 <MessageCircle className="w-4 h-4 text-white" />
               </div>
             </div>
+
             <h2 className="text-4xl font-bold mb-4">
               Chào mừng đến với Chat App!
             </h2>
@@ -658,73 +863,119 @@ const OnboardingPage = () => {
               Hoàn thiện hồ sơ để kết nối và trò chuyện với mọi người trên khắp
               thế giới.
             </p>
-          </div>
 
-          {/* Stats section */}
-          <div className="grid grid-cols-2 gap-4 mb-8">
-            <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 text-center">
-              <div className="text-2xl font-bold mb-1">10K+</div>
-              <div className="text-sm text-white/80">Người dùng</div>
-            </div>
-            <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 text-center">
-              <div className="text-2xl font-bold mb-1">50K+</div>
-              <div className="text-sm text-white/80">Tin nhắn/ngày</div>
-            </div>
-          </div>
-
-          {/* Feature highlights */}
-          <div className="space-y-3 text-left">
-            {[
-              {
-                icon: MessageCircle,
-                text: "Tin nhắn siêu nhanh",
-                color: "from-blue-400 to-cyan-400",
-              },
-              {
-                icon: Heart,
-                text: "Kết nối ý nghĩa",
-                color: "from-pink-400 to-rose-400",
-              },
-              {
-                icon: Globe,
-                text: "Trò chuyện toàn cầu",
-                color: "from-green-400 to-emerald-400",
-              },
-              {
-                icon: Star,
-                text: "Trải nghiệm tuyệt vời",
-                color: "from-yellow-400 to-orange-400",
-              },
-            ].map((feature, index) => (
-              <div
-                key={index}
-                className="flex items-center gap-3 p-3 bg-white/10 backdrop-blur-sm rounded-lg hover:bg-white/20 transition-all duration-300 transform hover:scale-105"
-                style={{ animationDelay: `${index * 0.1}s` }}
-              >
-                <div
-                  className={`w-8 h-8 bg-gradient-to-r ${feature.color} rounded-full flex items-center justify-center`}
-                >
-                  <feature.icon className="w-4 h-4 text-white" />
-                </div>
-                <span className="text-lg">{feature.text}</span>
+            {/* Stats section */}
+            <div className="grid grid-cols-2 gap-4 mb-6">
+              <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 text-center transform hover:scale-105 transition-all duration-300">
+                <div className="text-2xl font-bold mb-1">10K+</div>
+                <div className="text-sm text-white/80">Người dùng</div>
               </div>
-            ))}
+              <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 text-center transform hover:scale-105 transition-all duration-300">
+                <div className="text-2xl font-bold mb-1">50K+</div>
+                <div className="text-sm text-white/80">Tin nhắn/ngày</div>
+              </div>
+            </div>
+
+            {/* Feature highlights */}
+            <div className="space-y-3 text-left">
+              {[
+                {
+                  icon: MessageCircle,
+                  text: "Tin nhắn siêu nhanh",
+                  color: "from-blue-400 to-cyan-400",
+                },
+                {
+                  icon: Heart,
+                  text: "Kết nối ý nghĩa",
+                  color: "from-pink-400 to-rose-400",
+                },
+                {
+                  icon: Globe,
+                  text: "Trò chuyện toàn cầu",
+                  color: "from-green-400 to-emerald-400",
+                },
+                {
+                  icon: Star,
+                  text: "Trải nghiệm tuyệt vời",
+                  color: "from-yellow-400 to-orange-400",
+                },
+              ].map((feature, index) => (
+                <div
+                  key={index}
+                  className="flex items-center gap-3 p-3 bg-white/10 backdrop-blur-sm rounded-lg hover:bg-white/20 transition-all duration-300 transform hover:scale-105"
+                  style={{ animationDelay: `${index * 0.1}s` }}
+                >
+                  <div
+                    className={`w-8 h-8 bg-gradient-to-r ${feature.color} rounded-full flex items-center justify-center`}
+                  >
+                    <feature.icon className="w-4 h-4 text-white" />
+                  </div>
+                  <span className="text-lg">{feature.text}</span>
+                </div>
+              ))}
+            </div>
           </div>
 
-          {/* Bottom decoration */}
-          <div className="mt-8 flex justify-center space-x-2">
-            {[...Array(5)].map((_, i) => (
-              <div
-                key={i}
-                className="w-2 h-2 bg-white/40 rounded-full animate-pulse"
-                style={{ animationDelay: `${i * 0.2}s` }}
-              ></div>
-            ))}
+          {/* BOTTOM SECTION - Additional content */}
+          <div className="mb-24">
+            {/* Tips section */}
+            <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-6 mb-6 transform hover:scale-105 transition-all duration-300">
+              <h4 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                <div className="w-6 h-6 bg-gradient-to-r from-cyan-400 to-blue-400 rounded-full flex items-center justify-center">
+                  <svg
+                    className="w-3 h-3 text-white"
+                    fill="currentColor"
+                    viewBox="0 0 20 20"
+                  >
+                    <path
+                      fillRule="evenodd"
+                      d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                </div>
+                Mẹo nhỏ
+              </h4>
+              <p className="text-white/80 text-sm leading-relaxed">
+                Hồ sơ đầy đủ sẽ giúp bạn dễ dàng kết nối với những người có cùng
+                sở thích và từ cùng khu vực.
+              </p>
+            </div>
+
+            {/* Security badge */}
+            <div className="flex items-center justify-center gap-2 bg-white/10 backdrop-blur-sm rounded-xl p-4 mb-4">
+              <div className="w-6 h-6 bg-gradient-to-r from-green-400 to-emerald-400 rounded-full flex items-center justify-center">
+                <CheckCircle className="w-4 h-4 text-white" />
+              </div>
+              <span className="text-sm text-white/90">
+                Thông tin được bảo mật 100%
+              </span>
+            </div>
+
+            {/* Bottom decoration with enhanced animation */}
+            <div className="flex justify-center space-x-2 mb-4">
+              {[...Array(5)].map((_, i) => (
+                <div
+                  key={i}
+                  className="w-2 h-2 bg-white/40 rounded-full animate-pulse"
+                  style={{ animationDelay: `${i * 0.2}s` }}
+                ></div>
+              ))}
+            </div>
+
+            {/* Final encouragement */}
+            <p className="text-white/70 text-sm">
+              Hãy bắt đầu hành trình kết nối của bạn! 🚀
+            </p>
           </div>
         </div>
 
-        {/* Enhanced decorative elements */}
+        {/* Enhanced decorative background elements */}
         <div className="absolute top-10 right-10 w-20 h-20 bg-white/10 rounded-full blur-xl animate-pulse"></div>
+        <div
+          className="absolute top-1/4 left-5 w-24 h-24 bg-gradient-to-br from-white/5 to-white/10 rounded-full blur-xl animate-pulse"
+          style={{ animationDelay: "1.5s" }}
+        ></div>
         <div
           className="absolute bottom-10 left-10 w-32 h-32 bg-white/5 rounded-full blur-2xl animate-pulse"
           style={{ animationDelay: "1s" }}
@@ -732,6 +983,10 @@ const OnboardingPage = () => {
         <div
           className="absolute top-1/3 right-5 w-24 h-24 bg-gradient-to-br from-white/5 to-white/10 rounded-full blur-xl animate-pulse"
           style={{ animationDelay: "2s" }}
+        ></div>
+        <div
+          className="absolute bottom-1/4 right-8 w-16 h-16 bg-white/8 rounded-full blur-xl animate-pulse"
+          style={{ animationDelay: "2.5s" }}
         ></div>
       </div>
     </div>

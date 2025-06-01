@@ -207,7 +207,10 @@ const SignUpPage = ({ authUser }) => {
             <div className="space-y-6">
               {/* Account Field */}
               <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                <label
+                  className="text-sm font-medium text-gray-700 flex items-center gap-2"
+                  htmlFor="signup-account"
+                >
                   <User className="w-4 h-4" />
                   Tên tài khoản
                 </label>
@@ -217,9 +220,14 @@ const SignUpPage = ({ authUser }) => {
                   }`}
                 >
                   <input
+                    id="signup-account"
                     type="text"
                     placeholder="Chọn tên người dùng độc đáo của bạn"
-                    className="w-full px-4 py-3 bg-white/50 border-2 border-gray-200 rounded-xl focus:border-purple-500 focus:outline-none transition-all duration-300 placeholder-gray-400"
+                    className={`w-full px-4 py-3 bg-white/50 border-2 rounded-xl focus:border-purple-500 focus:outline-none transition-all duration-300 placeholder-gray-400 ${
+                      backendError?.toLowerCase().includes("tài khoản")
+                        ? "border-red-400 bg-red-50/50"
+                        : "border-gray-200"
+                    }`}
                     value={signupData.account}
                     onChange={(e) => {
                       setSignupData({ ...signupData, account: e.target.value });
@@ -228,7 +236,17 @@ const SignUpPage = ({ authUser }) => {
                     onFocus={() => setFocusedField("account")}
                     onBlur={() => setFocusedField("")}
                     required
+                    autoComplete="username"
+                    aria-label="Tên tài khoản"
+                    pattern="^[a-zA-Z0-9_]{4,20}$"
+                    title="Chỉ dùng chữ, số, gạch dưới. 4-20 ký tự."
                   />
+                  {backendError?.toLowerCase().includes("tài khoản") && (
+                    <p className="text-xs text-red-500 flex items-center gap-1 mt-1">
+                      <XCircle className="w-3 h-3" />
+                      {backendError}
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -264,7 +282,10 @@ const SignUpPage = ({ authUser }) => {
 
               {/* Email Field */}
               <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                <label
+                  className="text-sm font-medium text-gray-700 flex items-center gap-2"
+                  htmlFor="signup-email"
+                >
                   <Mail className="w-4 h-4" />
                   Email
                 </label>
@@ -274,9 +295,14 @@ const SignUpPage = ({ authUser }) => {
                   }`}
                 >
                   <input
+                    id="signup-email"
                     type="email"
                     placeholder="email.của.bạn@example.com"
-                    className="w-full px-4 py-3 bg-white/50 border-2 border-gray-200 rounded-xl focus:border-purple-500 focus:outline-none transition-all duration-300 placeholder-gray-400"
+                    className={`w-full px-4 py-3 bg-white/50 border-2 rounded-xl focus:border-purple-500 focus:outline-none transition-all duration-300 placeholder-gray-400 ${
+                      backendError?.toLowerCase().includes("email")
+                        ? "border-red-400 bg-red-50/50"
+                        : "border-gray-200"
+                    }`}
                     value={signupData.email}
                     onChange={(e) => {
                       setSignupData({ ...signupData, email: e.target.value });
@@ -285,13 +311,26 @@ const SignUpPage = ({ authUser }) => {
                     onFocus={() => setFocusedField("email")}
                     onBlur={() => setFocusedField("")}
                     required
+                    autoComplete="email"
+                    aria-label="Email"
+                    pattern="^[^\s@]+@[^\s@]+\.[^\s@]+$"
+                    title="Nhập đúng định dạng email."
                   />
+                  {backendError?.toLowerCase().includes("email") && (
+                    <p className="text-xs text-red-500 flex items-center gap-1 mt-1">
+                      <XCircle className="w-3 h-3" />
+                      {backendError}
+                    </p>
+                  )}
                 </div>
               </div>
 
               {/* Password Field */}
               <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                <label
+                  className="text-sm font-medium text-gray-700 flex items-center gap-2"
+                  htmlFor="signup-password"
+                >
                   <Lock className="w-4 h-4" />
                   Mật khẩu
                 </label>
@@ -301,6 +340,7 @@ const SignUpPage = ({ authUser }) => {
                   }`}
                 >
                   <input
+                    id="signup-password"
                     type={showPassword ? "text" : "password"}
                     placeholder="Tạo mật khẩu mạnh"
                     className="w-full px-4 py-3 pr-12 bg-white/50 border-2 border-gray-200 rounded-xl focus:border-purple-500 focus:outline-none transition-all duration-300 placeholder-gray-400"
@@ -318,12 +358,15 @@ const SignUpPage = ({ authUser }) => {
                     onFocus={() => setFocusedField("password")}
                     onBlur={() => setFocusedField("")}
                     autoComplete="new-password"
+                    aria-label="Mật khẩu"
                     required
                   />
                   <button
                     type="button"
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors duration-200"
                     onClick={() => setShowPassword(!showPassword)}
+                    tabIndex={-1}
+                    aria-label={showPassword ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
                   >
                     {showPassword ? (
                       <EyeOff className="w-5 h-5" />
@@ -371,7 +414,10 @@ const SignUpPage = ({ authUser }) => {
 
               {/* Confirm Password Field */}
               <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                <label
+                  className="text-sm font-medium text-gray-700 flex items-center gap-2"
+                  htmlFor="signup-confirm-password"
+                >
                   <Lock className="w-4 h-4" />
                   Xác nhận mật khẩu
                 </label>
@@ -381,6 +427,7 @@ const SignUpPage = ({ authUser }) => {
                   }`}
                 >
                   <input
+                    id="signup-confirm-password"
                     type={showConfirm ? "text" : "password"}
                     placeholder="Xác nhận mật khẩu của bạn"
                     className="w-full px-4 py-3 pr-12 bg-white/50 border-2 border-gray-200 rounded-xl focus:border-purple-500 focus:outline-none transition-all duration-300 placeholder-gray-400"
@@ -398,12 +445,19 @@ const SignUpPage = ({ authUser }) => {
                     onFocus={() => setFocusedField("confirmPassword")}
                     onBlur={() => setFocusedField("")}
                     autoComplete="new-password"
+                    aria-label="Xác nhận mật khẩu"
                     required
                   />
                   <button
                     type="button"
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors duration-200"
                     onClick={() => setShowConfirm(!showConfirm)}
+                    tabIndex={-1}
+                    aria-label={
+                      showConfirm
+                        ? "Ẩn xác nhận mật khẩu"
+                        : "Hiện xác nhận mật khẩu"
+                    }
                   >
                     {showConfirm ? (
                       <EyeOff className="w-5 h-5" />
@@ -480,9 +534,14 @@ const SignUpPage = ({ authUser }) => {
               <div className="text-center pt-4 border-t border-gray-100">
                 <p className="text-sm text-gray-600">
                   Đã có tài khoản?{" "}
-                  <span className="text-purple-600 hover:text-purple-700 cursor-pointer font-medium hover:underline">
+                  <button
+                    type="button"
+                    className="text-purple-600 hover:text-purple-700 cursor-pointer font-medium hover:underline"
+                    onClick={() => navigate("/login")}
+                    aria-label="Đi đến trang đăng nhập"
+                  >
                     Đăng nhập tại đây
-                  </span>
+                  </button>
                 </p>
               </div>
             </div>

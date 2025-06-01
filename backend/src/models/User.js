@@ -21,6 +21,11 @@ const userSchema = new mongoose.Schema(
     verifyCode: String, // Mã xác thực email
     verifyCodeExpiry: Date, // Thời gian hết hạn mã xác thực
 
+    // Quên mật khẩu bằng OTP
+    resetPasswordCode: String,
+    resetPasswordCodeExpiry: Date,
+    canResetPassword: { type: Boolean, default: false },
+
     // Hồ sơ cá nhân
     fullName: { type: String, default: "" }, // Họ và tên
     bio: { type: String, default: "" }, // Mô tả bản thân
@@ -57,7 +62,6 @@ const userSchema = new mongoose.Schema(
     blockedGroups: [{ type: mongoose.Schema.Types.ObjectId, ref: "Group" }], // Danh sách group mà user đã chặn (không muốn tham gia/nhận tin nhắn từ group đó)
 
     twoFactorEnabled: { type: Boolean, default: false }, // Đã bật 2FA chưa
-    twoFactorSecret: { type: String, default: "" }, // Secret dùng cho Google Authenticator
   },
   { timestamps: true } // Tự động thêm createdAt và updatedAt
 );
