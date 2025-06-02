@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { login } from "../lib/api.js";
+import { useNavigate, useLocation } from "react-router-dom";
+import useLogin from "../hooks/useLogin";
 import {
   Eye,
   EyeOff,
@@ -12,12 +12,8 @@ import {
   MessageCircle,
   Star,
   Shield,
-  Zap,
-  CheckCircle,
   Heart,
-  TrendingUp,
 } from "lucide-react";
-import { useNavigate, useLocation } from "react-router-dom";
 
 const LoginPage = () => {
   const [loginData, setLoginData] = useState({ account: "", password: "" });
@@ -26,33 +22,21 @@ const LoginPage = () => {
   const [validationErrors, setValidationErrors] = useState({});
   const [loginAttempts, setLoginAttempts] = useState(0);
   const [animationStep, setAnimationStep] = useState(0);
-  const queryClient = useQueryClient();
   const navigate = useNavigate();
   const location = useLocation();
 
-  const {
-    mutate: loginMutation,
-    isPending,
-    error,
-  } = useMutation({
-    mutationFn: login,
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["authUser"] });
-      setLoginAttempts(0);
-      // 2FA: Nếu backend trả về cần xác thực 2FA, điều hướng sang /2fa
-      if (data?.require2FA) {
-        navigate("/2fa", { state: { account: loginData.account } });
-        return;
-      }
-      // Navigate to dashboard or intended page
-      const redirectTo =
-        new URLSearchParams(location.search).get("redirect") || "/dashboard";
-      navigate(redirectTo, { replace: true });
-    },
-    onError: (error) => {
-      setLoginAttempts((prev) => prev + 1);
-      setLoginData((prev) => ({ ...prev, password: "" })); // Reset password field on error
-    },
+  // Replace useMutation with useLogin
+  const { loginMutation, isPending, error } = useLogin((data) => {
+    setLoginAttempts(0);
+    // 2FA: Nếu backend trả về cần xác thực 2FA, điều hướng sang /2fa
+    if (data?.require2FA) {
+      navigate("/2fa", { state: { account: loginData.account } });
+      return;
+    }
+    // Navigate to dashboard or intended page
+    const redirectTo =
+      new URLSearchParams(location.search).get("redirect") || "/homepage";
+    navigate(redirectTo, { replace: true });
   });
 
   // Email validation helper
@@ -141,10 +125,14 @@ const LoginPage = () => {
     e.preventDefault();
 
     if (isRateLimited) return;
-
     if (!validateForm()) return;
 
-    loginMutation(loginData);
+    loginMutation(loginData, {
+      onError: () => {
+        setLoginAttempts((prev) => prev + 1);
+        setLoginData((prev) => ({ ...prev, password: "" }));
+      },
+    });
   };
 
   // Handle Enter key in password field

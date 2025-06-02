@@ -13,8 +13,7 @@ import {
   Zap,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { signup } from "../lib/api.js";
+import useSignup from "../hooks/useSignup";
 
 const SignUpPage = ({ authUser }) => {
   const [signupData, setSignupData] = useState({
@@ -33,25 +32,18 @@ const SignUpPage = ({ authUser }) => {
   const [focusedField, setFocusedField] = useState("");
 
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
-  const {
-    mutate: signupMutation,
-    isPending,
-    error,
-  } = useMutation({
-    mutationFn: signup,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["authUser"] });
+  const { signupMutation, isPending, error } = useSignup(
+    () => {
       navigate("/verify-email");
     },
-    onError: (error) => {
+    (error) => {
       setBackendError(
         error?.response?.data?.message ||
           "Đăng ký không thành công. Vui lòng thử lại."
       );
       setLoading(false);
-    },
-  });
+    }
+  );
 
   useEffect(() => {
     if (authUser) {
