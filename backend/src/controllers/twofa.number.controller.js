@@ -1,4 +1,5 @@
 import User from "../models/User.js";
+import emailService from "../services/emailService.js";
 
 // Số ngẫu nhiên cho number-matching 2FA (demo, production nên lưu DB/cache)
 const numberMatchingStore = new Map(); // key: userId, value: { correct, options, expires }
@@ -12,21 +13,30 @@ export const generate2FANumber = async (req, res) => {
     if (!user || !user.twoFactorEnabled) {
       return res.status(400).json({ message: "User chưa bật 2FA" });
     }
-    // Sinh số đúng và 2 số nhiễu
-    const correct = Math.floor(Math.random() * 10);
+    if (!user.isVerified) {
+      return res
+        .status(400)
+        .json({ message: "Email chưa được xác thực. Không thể sử dụng 2FA." });
+    }
+    // Sinh số đúng 2 chữ số và 2 số nhiễu
+    const correct = Math.floor(10 + Math.random() * 90); // 2 chữ số
     let nums = [correct];
     while (nums.length < 3) {
-      const n = Math.floor(Math.random() * 10);
+      const n = Math.floor(10 + Math.random() * 90);
       if (!nums.includes(n)) nums.push(n);
     }
     nums = nums.sort(() => Math.random() - 0.5); // shuffle
+
+    // Gửi mã đúng qua email cho user
+    await emailService.sendVerificationEmail(user.email, correct);
+
     // Lưu vào store (demo: 2 phút)
     numberMatchingStore.set(user._id.toString(), {
       correct,
       options: nums,
       expires: Date.now() + 2 * 60 * 1000,
     });
-    res.json({ options: nums });
+    res.json({ options: nums }); // KHÔNG trả về số đúng!
   } catch (err) {
     res
       .status(500)
@@ -53,8 +63,11 @@ export const verify2FANumber = async (req, res) => {
     if (Number(token) !== store.correct) {
       return res.status(400).json({ message: "Số xác thực không đúng" });
     }
-    // Xác thực thành công, xóa khỏi store
+    // Xác thực thành công, xóa khỏi store và set session 2FA
     numberMatchingStore.delete(user._id.toString());
+    if (req.session) {
+      req.session.isTwoFAVerified = true;
+    }
     res.json({ success: true, message: "Xác thực thành công" });
   } catch (err) {
     res.status(500).json({ message: "Lỗi xác thực số", error: err.message });

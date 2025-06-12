@@ -11,7 +11,7 @@ const useAuthUser = () => {
   });
 
   return {
-    authUser: authUser.data?.user,
+    authUser: authUser.data,
     isLoading: authUser.isLoading,
     error: authUser.error,
   };

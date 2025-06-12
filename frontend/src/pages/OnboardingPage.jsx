@@ -18,6 +18,7 @@ import { onboard } from "../lib/api.js";
 import { useNavigate } from "react-router-dom";
 import useAuthUser from "../hooks/useAuthUser.js";
 import axios from "axios";
+import { useToast } from "../components/Toast.jsx";
 
 const initialState = (authUser) => ({
   fullName: authUser?.fullName || "",
@@ -35,6 +36,7 @@ const initialState = (authUser) => ({
 
 const OnboardingPage = () => {
   const { authUser } = useAuthUser();
+  const { addToast } = useToast();
   const [formState, setFormState] = useState(initialState(authUser));
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
@@ -187,6 +189,7 @@ const OnboardingPage = () => {
         dateOfBirth: formState.dateOfBirth,
         location,
       });
+      addToast({ message: "Hoàn thiện hồ sơ thành công!", type: "success" });
       navigate("/chat");
     } catch (err) {
       let errorMessage = "Có lỗi xảy ra, vui lòng thử lại.";
@@ -199,6 +202,7 @@ const OnboardingPage = () => {
       }
 
       setErrors({ general: errorMessage });
+      addToast({ message: errorMessage, type: "error" });
     } finally {
       setLoading(false);
     }

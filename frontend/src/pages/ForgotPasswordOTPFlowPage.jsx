@@ -18,12 +18,12 @@ import {
   ArrowLeft,
   User,
   MessageCircle,
-  Star,
   Zap,
   Clock,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { SwitchTransition, CSSTransition } from "react-transition-group";
+import { useToast } from "../components/Toast.jsx";
 
 const ForgotPasswordOTPFlowPage = () => {
   const [step, setStep] = useState(1); // 1: nhập tài khoản, 2: nhập mã, 3: đặt lại mật khẩu
@@ -39,6 +39,7 @@ const ForgotPasswordOTPFlowPage = () => {
   const [focusedField, setFocusedField] = useState("");
   const [countdown, setCountdown] = useState(0);
   const navigate = useNavigate();
+  const { addToast } = useToast();
 
   // Countdown timer for resend OTP
   useEffect(() => {
@@ -74,9 +75,14 @@ const ForgotPasswordOTPFlowPage = () => {
       setStep(2);
       setError("");
       setCountdown(60);
+      addToast({ message: "Đã gửi mã xác nhận thành công!", type: "success" });
     },
     onError: (err) => {
       setError(err?.response?.data?.message || "Không thể gửi mã xác nhận");
+      addToast({
+        message: err?.response?.data?.message || "Không thể gửi mã xác nhận",
+        type: "error",
+      });
     },
   });
 
@@ -86,11 +92,18 @@ const ForgotPasswordOTPFlowPage = () => {
     onSuccess: () => {
       setStep(3);
       setError("");
+      addToast({ message: "Xác nhận mã OTP thành công!", type: "success" });
     },
     onError: (err) => {
       setError(
         err?.response?.data?.message || "Mã xác nhận không đúng hoặc đã hết hạn"
       );
+      addToast({
+        message:
+          err?.response?.data?.message ||
+          "Mã xác nhận không đúng hoặc đã hết hạn",
+        type: "error",
+      });
     },
   });
 
@@ -100,10 +113,15 @@ const ForgotPasswordOTPFlowPage = () => {
     onSuccess: () => {
       setSuccess(true);
       setError("");
+      addToast({ message: "Đặt lại mật khẩu thành công!", type: "success" });
       setTimeout(() => navigate("/login"), 3000);
     },
     onError: (err) => {
       setError(err?.response?.data?.message || "Không thể đặt lại mật khẩu");
+      addToast({
+        message: err?.response?.data?.message || "Không thể đặt lại mật khẩu",
+        type: "error",
+      });
     },
   });
 

@@ -13,7 +13,8 @@ import {
   Zap,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import useSignup from "../hooks/useSignup";
+import useSignup from "../hooks/useSignup.js";
+import { useToast } from "../components/Toast.jsx";
 
 const SignUpPage = ({ authUser }) => {
   const [signupData, setSignupData] = useState({
@@ -32,8 +33,14 @@ const SignUpPage = ({ authUser }) => {
   const [focusedField, setFocusedField] = useState("");
 
   const navigate = useNavigate();
+  const { addToast } = useToast();
+
   const { signupMutation, isPending, error } = useSignup(
     () => {
+      addToast({
+        message: "Đăng ký thành công! Vui lòng xác thực email.",
+        type: "success",
+      });
       navigate("/verify-email");
     },
     (error) => {
@@ -42,6 +49,12 @@ const SignUpPage = ({ authUser }) => {
           "Đăng ký không thành công. Vui lòng thử lại."
       );
       setLoading(false);
+      addToast({
+        message:
+          error?.response?.data?.message ||
+          "Đăng ký không thành công. Vui lòng thử lại.",
+        type: "error",
+      });
     }
   );
 

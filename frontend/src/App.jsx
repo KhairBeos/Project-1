@@ -10,7 +10,6 @@ import NotificationsPage from "./pages/NotificationsPage.jsx";
 import OnboardingPage from "./pages/OnboardingPage.jsx";
 import EmailVerificationPage from "./pages/EmailVerificationPage.jsx";
 import ProfilePage from "./pages/ProfilePage.jsx";
-import ChangePasswordPage from "./pages/ChangePasswordPage.jsx";
 import BlockedUsersPage from "./pages/BlockedUsersPage.jsx";
 import FriendsPage from "./pages/FriendsPage.jsx";
 import FriendRequestsPage from "./pages/FriendRequestsPage.jsx";
@@ -26,16 +25,21 @@ import { Toaster } from "react-hot-toast";
 import PageLoader from "./components/PageLoader.jsx";
 import ErrorPage from "./components/ErrorPage.jsx";
 import useAuthUser from "./hooks/useAuthUser.js";
-import { Layout } from "./components/Layout.jsx";
+import Layout from "./components/Layout.jsx";
+import ErrorBoundary from "./components/ErrorBoundary.jsx";
+import { useToast } from "./components/Toast.jsx";
 
 const App = () => {
   const location = useLocation();
+  const { ToastContainer } = useToast();
 
   const { isLoading, authUser, error } = useAuthUser();
 
   const isAuthenticated = Boolean(authUser);
   const isOnboarded = authUser?.isOnboarded;
   const isEmailVerified = authUser?.isEmailVerified;
+  const isTwoFAEnabled = authUser?.twoFactorEnabled;
+  const isTwoFAVerified = authUser?.isTwoFAVerified; // Nếu có trạng thái này trong backend/frontend
 
   // Chỉ loading khi không ở signup/login
   if (!["/signup", "/login"].includes(location.pathname)) {
@@ -45,224 +49,238 @@ const App = () => {
   }
 
   return (
-    <div className="h-screen" data-theme="night ">
-      <SwitchTransition mode="out-in">
-        <CSSTransition key={location.pathname} classNames="fade" timeout={200}>
-          <div>
-            <Routes location={location}>
-              {/* Route có layout */}
-              <Route element={<Layout />}>
-                <Route
-                  path="/"
-                  element={
-                    isAuthenticated ? (
-                      !isEmailVerified ? (
-                        <Navigate to="/verify-email" />
-                      ) : !isOnboarded ? (
-                        <Navigate to="/onboarding" />
+    <ErrorBoundary>
+      <div className="h-screen" data-theme="night ">
+        <SwitchTransition mode="out-in">
+          <CSSTransition
+            key={location.pathname}
+            classNames="fade"
+            timeout={200}
+          >
+            <div>
+              <Routes location={location}>
+                {/* Route có layout */}
+                <Route element={<Layout />}>
+                  <Route
+                    path="/"
+                    element={
+                      isAuthenticated ? (
+                        !isEmailVerified ? (
+                          <Navigate to="/verify-email" />
+                        ) : !isOnboarded ? (
+                          <Navigate to="/onboarding" />
+                        ) : isTwoFAEnabled && !isTwoFAVerified ? (
+                          <Navigate to="/2fa" />
+                        ) : (
+                          <HomePage />
+                        )
                       ) : (
-                        <HomePage />
+                        <Navigate to="/login" />
                       )
+                    }
+                  />
+                  <Route
+                    path="/chat"
+                    element={
+                      isAuthenticated && isEmailVerified && isOnboarded ? (
+                        isTwoFAEnabled && !isTwoFAVerified ? (
+                          <Navigate to="/2fa" />
+                        ) : (
+                          <ChatPage />
+                        )
+                      ) : (
+                        <Navigate to="/login" />
+                      )
+                    }
+                  />
+                  <Route
+                    path="/notifications"
+                    element={
+                      isAuthenticated && isEmailVerified && isOnboarded ? (
+                        <NotificationsPage />
+                      ) : (
+                        <Navigate to="/login" />
+                      )
+                    }
+                  />
+                  <Route
+                    path="/call"
+                    element={
+                      isAuthenticated && isEmailVerified && isOnboarded ? (
+                        <CallPage />
+                      ) : (
+                        <Navigate to="/login" />
+                      )
+                    }
+                  />
+                  <Route
+                    path="/profile"
+                    element={
+                      isAuthenticated && isEmailVerified && isOnboarded ? (
+                        <ProfilePage />
+                      ) : (
+                        <Navigate to="/login" />
+                      )
+                    }
+                  />
+                  <Route
+                    path="/blocked-users"
+                    element={
+                      isAuthenticated && isEmailVerified && isOnboarded ? (
+                        <BlockedUsersPage />
+                      ) : (
+                        <Navigate to="/login" />
+                      )
+                    }
+                  />
+                  <Route
+                    path="/friends"
+                    element={
+                      isAuthenticated && isEmailVerified && isOnboarded ? (
+                        <FriendsPage />
+                      ) : (
+                        <Navigate to="/login" />
+                      )
+                    }
+                  />
+                  <Route
+                    path="/friend-requests"
+                    element={
+                      isAuthenticated && isEmailVerified && isOnboarded ? (
+                        <FriendRequestsPage />
+                      ) : (
+                        <Navigate to="/login" />
+                      )
+                    }
+                  />
+                  <Route
+                    path="/groups"
+                    element={
+                      isAuthenticated && isEmailVerified && isOnboarded ? (
+                        <GroupsPage />
+                      ) : (
+                        <Navigate to="/login" />
+                      )
+                    }
+                  />
+                  <Route
+                    path="/groups/:id"
+                    element={
+                      isAuthenticated && isEmailVerified && isOnboarded ? (
+                        <GroupDetailPage />
+                      ) : (
+                        <Navigate to="/login" />
+                      )
+                    }
+                  />
+                  <Route
+                    path="/user-search"
+                    element={
+                      isAuthenticated && isEmailVerified && isOnboarded ? (
+                        <UserSearchPage />
+                      ) : (
+                        <Navigate to="/login" />
+                      )
+                    }
+                  />
+                  <Route
+                    path="/chat-history"
+                    element={
+                      isAuthenticated && isEmailVerified && isOnboarded ? (
+                        <ChatHistoryPage />
+                      ) : (
+                        <Navigate to="/login" />
+                      )
+                    }
+                  />
+                  <Route
+                    path="/direct/:id"
+                    element={
+                      isAuthenticated && isEmailVerified && isOnboarded ? (
+                        <DirectChatPage />
+                      ) : (
+                        <Navigate to="/login" />
+                      )
+                    }
+                  />
+                </Route>
+                {/* Route không có layout */}
+                <Route
+                  path="/signup"
+                  element={
+                    !isAuthenticated ? (
+                      <SignUpPage />
+                    ) : !isEmailVerified ? (
+                      <Navigate to="/verify-email" />
+                    ) : !isOnboarded ? (
+                      <Navigate to="/onboarding" />
                     ) : (
-                      <Navigate to="/login" />
+                      <Navigate to="/chat" />
                     )
                   }
                 />
                 <Route
-                  path="/chat"
+                  path="/login"
                   element={
-                    isAuthenticated && isEmailVerified && isOnboarded ? (
-                      <ChatPage />
+                    !isAuthenticated ? (
+                      <LoginPage />
+                    ) : !isEmailVerified ? (
+                      <Navigate to="/verify-email" />
+                    ) : !isOnboarded ? (
+                      <Navigate to="/onboarding" />
                     ) : (
-                      <Navigate to="/login" />
+                      <Navigate to="/chat" />
                     )
                   }
                 />
                 <Route
-                  path="/notifications"
+                  path="/onboarding"
                   element={
-                    isAuthenticated && isEmailVerified && isOnboarded ? (
-                      <NotificationsPage />
+                    isAuthenticated && isEmailVerified && !isOnboarded ? (
+                      <OnboardingPage />
                     ) : (
-                      <Navigate to="/login" />
+                      <Navigate to="/" />
                     )
                   }
                 />
                 <Route
-                  path="/call"
+                  path="/verify-email"
                   element={
-                    isAuthenticated && isEmailVerified && isOnboarded ? (
-                      <CallPage />
+                    isAuthenticated && !isEmailVerified ? (
+                      <EmailVerificationPage />
                     ) : (
-                      <Navigate to="/login" />
+                      <Navigate to="/" />
                     )
                   }
                 />
                 <Route
-                  path="/profile"
+                  path="/2fa"
                   element={
-                    isAuthenticated && isEmailVerified && isOnboarded ? (
-                      <ProfilePage />
-                    ) : (
+                    isAuthenticated && isEmailVerified ? (
+                      <TwoFAPage />
+                    ) : !isAuthenticated ? (
                       <Navigate to="/login" />
+                    ) : (
+                      <Navigate to="/verify-email" />
                     )
                   }
                 />
                 <Route
-                  path="/change-password"
-                  element={
-                    isAuthenticated && isEmailVerified && isOnboarded ? (
-                      <ChangePasswordPage />
-                    ) : (
-                      <Navigate to="/login" />
-                    )
-                  }
+                  path="/forgot-password-otp"
+                  element={<ForgotPasswordOTPFlowPage />}
                 />
                 <Route
-                  path="/blocked-users"
-                  element={
-                    isAuthenticated && isEmailVerified && isOnboarded ? (
-                      <BlockedUsersPage />
-                    ) : (
-                      <Navigate to="/login" />
-                    )
-                  }
+                  path="*"
+                  element={<ErrorPage message="404 - Trang không tồn tại!" />}
                 />
-                <Route
-                  path="/friends"
-                  element={
-                    isAuthenticated && isEmailVerified && isOnboarded ? (
-                      <FriendsPage />
-                    ) : (
-                      <Navigate to="/login" />
-                    )
-                  }
-                />
-                <Route
-                  path="/friend-requests"
-                  element={
-                    isAuthenticated && isEmailVerified && isOnboarded ? (
-                      <FriendRequestsPage />
-                    ) : (
-                      <Navigate to="/login" />
-                    )
-                  }
-                />
-                <Route
-                  path="/groups"
-                  element={
-                    isAuthenticated && isEmailVerified && isOnboarded ? (
-                      <GroupsPage />
-                    ) : (
-                      <Navigate to="/login" />
-                    )
-                  }
-                />
-                <Route
-                  path="/groups/:id"
-                  element={
-                    isAuthenticated && isEmailVerified && isOnboarded ? (
-                      <GroupDetailPage />
-                    ) : (
-                      <Navigate to="/login" />
-                    )
-                  }
-                />
-                <Route
-                  path="/user-search"
-                  element={
-                    isAuthenticated && isEmailVerified && isOnboarded ? (
-                      <UserSearchPage />
-                    ) : (
-                      <Navigate to="/login" />
-                    )
-                  }
-                />
-                <Route
-                  path="/chat-history"
-                  element={
-                    isAuthenticated && isEmailVerified && isOnboarded ? (
-                      <ChatHistoryPage />
-                    ) : (
-                      <Navigate to="/login" />
-                    )
-                  }
-                />
-                <Route
-                  path="/direct/:id"
-                  element={
-                    isAuthenticated && isEmailVerified && isOnboarded ? (
-                      <DirectChatPage />
-                    ) : (
-                      <Navigate to="/login" />
-                    )
-                  }
-                />
-              </Route>
-              {/* Route không có layout */}
-              <Route
-                path="/signup"
-                element={
-                  !isAuthenticated ? (
-                    <SignUpPage />
-                  ) : !isEmailVerified ? (
-                    <Navigate to="/verify-email" />
-                  ) : !isOnboarded ? (
-                    <Navigate to="/onboarding" />
-                  ) : (
-                    <Navigate to="/chat" />
-                  )
-                }
-              />
-              <Route
-                path="/login"
-                element={
-                  !isAuthenticated ? (
-                    <LoginPage />
-                  ) : !isEmailVerified ? (
-                    <Navigate to="/verify-email" />
-                  ) : !isOnboarded ? (
-                    <Navigate to="/onboarding" />
-                  ) : (
-                    <Navigate to="/chat" />
-                  )
-                }
-              />
-              <Route
-                path="/onboarding"
-                element={
-                  isAuthenticated && isEmailVerified && !isOnboarded ? (
-                    <OnboardingPage />
-                  ) : (
-                    <Navigate to="/" />
-                  )
-                }
-              />
-              <Route
-                path="/verify-email"
-                element={
-                  isAuthenticated && !isEmailVerified ? (
-                    <EmailVerificationPage />
-                  ) : (
-                    <Navigate to="/" />
-                  )
-                }
-              />
-              <Route path="/2fa" element={<TwoFAPage />} />
-              <Route
-                path="/forgot-password-otp"
-                element={<ForgotPasswordOTPFlowPage />}
-              />
-              <Route
-                path="*"
-                element={<ErrorPage message="404 - Trang không tồn tại!" />}
-              />
-            </Routes>
-          </div>
-        </CSSTransition>
-      </SwitchTransition>
-      <Toaster />
-    </div>
+              </Routes>
+            </div>
+          </CSSTransition>
+        </SwitchTransition>
+        <Toaster />
+        <ToastContainer />
+      </div>
+    </ErrorBoundary>
   );
 };
 

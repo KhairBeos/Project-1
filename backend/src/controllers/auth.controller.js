@@ -149,6 +149,20 @@ export async function login(req, res) {
       return res.status(200).json({ require2FA: true });
     }
 
+    // Đăng ký user trên Stream Chat nếu chưa có (phòng trường hợp user cũ)
+    try {
+      await upsertStreamUser({
+        id: user._id.toString(),
+        name: user.fullName,
+        image: user.profilePic || "",
+      });
+    } catch (error) {
+      console.error(
+        `Error upserting Stream user for userId=${user._id}, name=${user.fullName}:`,
+        error
+      );
+    }
+
     // Tạo JWT token
     const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET_KEY, {
       expiresIn: "7d",

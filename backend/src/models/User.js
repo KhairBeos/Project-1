@@ -61,6 +61,22 @@ const userSchema = new mongoose.Schema(
     blockedUsers: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }], // Danh sách user bị chặn (block)
     blockedGroups: [{ type: mongoose.Schema.Types.ObjectId, ref: "Group" }], // Danh sách group mà user đã chặn (không muốn tham gia/nhận tin nhắn từ group đó)
 
+    // Tin nhắn được pin trong chat 1-1: [{ user: ObjectId, message: ObjectId }]
+    pinnedDirectMessages: [
+      {
+        user: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "User",
+          required: true,
+        }, // user đối thoại
+        message: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "Message",
+          required: true,
+        }, // tin nhắn được pin
+      },
+    ],
+
     twoFactorEnabled: { type: Boolean, default: false }, // Đã bật 2FA chưa
   },
   { timestamps: true } // Tự động thêm createdAt và updatedAt

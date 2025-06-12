@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import useLogin from "../hooks/useLogin";
+import useLogin from "../hooks/useLogin.js";
+import { useToast } from "../components/Toast.jsx";
 import {
   Eye,
   EyeOff,
@@ -38,6 +39,8 @@ const LoginPage = () => {
       new URLSearchParams(location.search).get("redirect") || "/homepage";
     navigate(redirectTo, { replace: true });
   });
+
+  const { addToast } = useToast();
 
   // Email validation helper
   const isValidEmail = (email) => {
@@ -128,9 +131,13 @@ const LoginPage = () => {
     if (!validateForm()) return;
 
     loginMutation(loginData, {
-      onError: () => {
+      onError: (err) => {
         setLoginAttempts((prev) => prev + 1);
         setLoginData((prev) => ({ ...prev, password: "" }));
+        addToast({ message: getErrorMessage(err), type: "error" });
+      },
+      onSuccess: () => {
+        addToast({ message: "Đăng nhập thành công!", type: "success" });
       },
     });
   };

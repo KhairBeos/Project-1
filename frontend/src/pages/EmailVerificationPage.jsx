@@ -8,6 +8,10 @@ import {
   Shield,
   Sparkles,
 } from "lucide-react";
+import { verifyEmail, resendVerifyEmail, logout } from "../lib/api.js";
+import { useNavigate } from "react-router-dom";
+import useAuthUser from "../hooks/useAuthUser.js";
+import { useToast } from "../components/Toast.jsx";
 
 const EmailVerificationPage = () => {
   const [loading, setLoading] = useState(false);
@@ -21,8 +25,9 @@ const EmailVerificationPage = () => {
   const [shakeInputs, setShakeInputs] = useState(false);
   const [showCelebration, setShowCelebration] = useState(false);
   const inputRefs = useRef([]);
-  // Mock user email for demo
-  const authUser = { email: "user@example.com" };
+  const navigate = useNavigate();
+  const { authUser } = useAuthUser();
+  const { addToast } = useToast();
 
   useEffect(() => {
     if (countdown > 0) {
@@ -88,51 +93,22 @@ const EmailVerificationPage = () => {
     }
   };
 
-  const showToast = (message, type = "success") => {
-    const toast = document.createElement("div");
-    toast.className = `
-      fixed top-6 right-6 px-6 py-4 rounded-2xl shadow-2xl z-50 transform transition-all duration-500
-      ${
-        type === "success"
-          ? "bg-gradient-to-r from-green-500 to-emerald-600 text-white"
-          : "bg-gradient-to-r from-red-500 to-rose-600 text-white"
-      }
-      animate-[slideInRight_0.5s_ease-out] backdrop-blur-lg border border-white/20
-    `;
-    toast.innerHTML = `
-      <div class="flex items-center gap-3">
-        ${
-          type === "success"
-            ? '<div class="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center"><svg class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg></div>'
-            : '<div class="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center"><svg class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/></svg></div>'
-        }
-        <span class="font-medium">${message}</span>
-      </div>
-    `;
-
-    document.body.appendChild(toast);
-
-    setTimeout(() => {
-      toast.style.transform = "translateX(100%)";
-      toast.style.opacity = "0";
-      setTimeout(() => document.body.removeChild(toast), 500);
-    }, 3000);
-  };
-
   const handleResend = async () => {
     if (countdown > 0) return;
     setResending(true);
     try {
-      // Mock API call
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      await resendVerifyEmail(authUser.email);
       setCountdown(60);
       setOtpExpiry(300);
       setCode(["", "", "", "", "", ""]);
       setError("");
       inputRefs.current[0]?.focus();
-      showToast("Đã gửi lại mã xác thực!");
+      addToast({ message: "Đã gửi lại mã xác thực!", type: "success" });
     } catch (err) {
-      showToast("Gửi lại mã thất bại!", "error");
+      addToast({
+        message: err?.response?.data?.message || "Gửi lại mã thất bại!",
+        type: "error",
+      });
     } finally {
       setResending(false);
     }
@@ -151,19 +127,16 @@ const EmailVerificationPage = () => {
     setError("");
 
     try {
-      // Mock API call - accept any 6-digit code for demo
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-
+      await verifyEmail(verificationCode);
       setSuccess(true);
       setShowCelebration(true);
-      showToast("Xác thực thành công!");
-
-      // In real app, navigate to onboarding
+      addToast({ message: "Xác thực thành công!", type: "success" });
       setTimeout(() => {
         alert("Chuyển hướng đến trang onboarding...");
       }, 2000);
     } catch (err) {
-      const errorMessage = "Mã xác thực không đúng!";
+      const errorMessage =
+        err?.response?.data?.message || "Mã xác thực không đúng!";
       setError(errorMessage);
       setShakeInputs(true);
       setTimeout(() => setShakeInputs(false), 600);
@@ -181,12 +154,11 @@ const EmailVerificationPage = () => {
   const handleBack = async () => {
     setBackLoading(true);
     try {
-      // Mock logout
-      await new Promise((resolve) => setTimeout(resolve, 500));
-      alert("Đăng xuất và chuyển về trang login...");
+      await logout();
+      navigate("/login");
     } catch (error) {
       console.error("Logout failed:", error);
-      alert("Chuyển về trang login...");
+      navigate("/login");
     } finally {
       setBackLoading(false);
     }

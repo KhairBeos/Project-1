@@ -1,5 +1,7 @@
 import User from "../models/User.js";
 import FriendRequest from "../models/FriendRequest.js";
+import Group from "../models/Group.js";
+import { generateStreamToken } from "../lib/stream.js";
 
 export async function getRecommendedUsers(req, res) {
   try {
@@ -102,6 +104,23 @@ export async function acceptFriendRequest(req, res) {
     await User.findByIdAndUpdate(friendRequest.recipient, {
       $addToSet: { friends: friendRequest.sender },
     });
+
+    // Emit socket event cho cả 2 phía
+    const io = req.app.locals.io;
+    if (io) {
+      io.to(friendRequest.sender.toString()).emit("friend_request_accepted", {
+        toUserId: friendRequest.sender.toString(),
+        fromUserId: friendRequest.recipient.toString(),
+      });
+      io.to(friendRequest.recipient.toString()).emit(
+        "friend_request_accepted",
+        {
+          toUserId: friendRequest.sender.toString(),
+          fromUserId: friendRequest.recipient.toString(),
+        }
+      );
+    }
+
     res.status(200).json({ message: "Friend request accepted" });
   } catch (error) {
     console.error("Error in acceptFriendRequest controller:", error);
@@ -192,6 +211,20 @@ export async function removeFriend(req, res) {
     const userId = req.user._id;
     await User.findByIdAndUpdate(userId, { $pull: { friends: friendId } });
     await User.findByIdAndUpdate(friendId, { $pull: { friends: userId } });
+
+    // Emit socket event cho cả 2 phía
+    const io = req.app.locals.io;
+    if (io) {
+      io.to(userId.toString()).emit("friend_removed", {
+        userId1: userId.toString(),
+        userId2: friendId.toString(),
+      });
+      io.to(friendId.toString()).emit("friend_removed", {
+        userId1: userId.toString(),
+        userId2: friendId.toString(),
+      });
+    }
+
     res.status(200).json({ message: "Friend removed" });
   } catch (error) {
     res.status(500).json({ message: "Internal server error" });
@@ -211,6 +244,37 @@ export async function searchUsers(req, res) {
       _id: { $ne: req.user._id },
     }).select("fullName profilePic email nationality status lastActive");
     res.status(200).json(users);
+  } catch (error) {
+    res.status(500).json({ message: "Internal server error" });
+  }
+}
+
+// Tìm kiếm user và group (all-in-one)
+export async function searchAll(req, res) {
+  try {
+    const { q } = req.query;
+    if (!q) return res.status(400).json({ message: "Missing search query" });
+
+    // Tìm user
+    const users = await User.find({
+      $or: [
+        { fullName: { $regex: q, $options: "i" } },
+        { account: { $regex: q, $options: "i" } },
+        { email: { $regex: q, $options: "i" } },
+      ],
+      _id: { $ne: req.user._id },
+    }).select("fullName profilePic email nationality status lastActive");
+
+    // Tìm group (chỉ group public hoặc group user chưa là thành viên)
+    const groups = await Group.find({
+      $or: [
+        { name: { $regex: q, $options: "i" } },
+        { description: { $regex: q, $options: "i" } },
+      ],
+      isDirect: false,
+    }).select("name avatar description members type");
+
+    res.json({ users, groups });
   } catch (error) {
     res.status(500).json({ message: "Internal server error" });
   }
@@ -255,5 +319,108 @@ export const unblockUser = async (req, res) => {
     res
       .status(500)
       .json({ message: "Lỗi bỏ chặn người dùng", error: err.message });
+  }
+};
+
+// Lấy thông tin user hiện tại (bao gồm trạng thái 2FA session)
+export const getMe = async (req, res) => {
+  try {
+    // Lấy user, populate friends và groups chỉ lấy _id
+    const user = await User.findById(req.user._id)
+      .select("-password")
+      .populate("friends", "_id")
+      .populate("groups", "_id");
+    if (!user) return res.status(404).json({ message: "User not found" });
+    // Trả về friends và groups là mảng id, bổ sung streamToken
+    res.json({
+      ...user.toObject(),
+      friends: user.friends?.map((f) => f._id) || [],
+      groups: user.groups?.map((g) => g._id) || [],
+      isTwoFAVerified: req.session?.isTwoFAVerified || false,
+      streamToken: generateStreamToken(user._id.toString()),
+    });
+  } catch (err) {
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+// Bật 2FA cho user hiện tại
+export const enableTwoFA = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(404).json({ message: "User not found" });
+    if (user.twoFactorEnabled) {
+      return res.status(400).json({ message: "2FA đã được bật trước đó" });
+    }
+    user.twoFactorEnabled = true;
+    await user.save();
+    // TODO: Gửi email xác nhận/bảo mật nếu cần
+    res.json({ message: "Đã bật xác thực 2 lớp" });
+  } catch (err) {
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+// Tắt 2FA cho user hiện tại
+export const disableTwoFA = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(404).json({ message: "User not found" });
+    if (!user.twoFactorEnabled) {
+      return res.status(400).json({ message: "2FA chưa được bật" });
+    }
+    user.twoFactorEnabled = false;
+    await user.save();
+    res.json({ message: "Đã tắt xác thực 2 lớp" });
+  } catch (err) {
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+// Cập nhật thông tin cá nhân
+export const updateProfile = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const {
+      name,
+      avatar,
+      fullName,
+      bio,
+      nationality,
+      dateOfBirth,
+      gender,
+      location,
+    } = req.body;
+    const update = {};
+    if (name !== undefined) update.name = name;
+    if (avatar !== undefined) update.avatar = avatar;
+    if (fullName !== undefined) update.fullName = fullName;
+    if (bio !== undefined) update.bio = bio;
+    if (nationality !== undefined) update.nationality = nationality;
+    if (dateOfBirth !== undefined) update.dateOfBirth = dateOfBirth;
+    if (gender !== undefined) update.gender = gender;
+    if (location !== undefined) update.location = location;
+    // Có thể cập nhật thêm các trường khác nếu cần
+    const user = await User.findByIdAndUpdate(userId, update, { new: true });
+    if (!user) return res.status(404).json({ message: "User not found" });
+    res.json({ message: "Cập nhật thành công", user });
+  } catch (err) {
+    res.status(500).json({ message: "Cập nhật thất bại", error: err.message });
+  }
+};
+
+// Lấy danh sách người dùng bị block
+export const getBlockedUsers = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id).populate(
+      "blockedUsers",
+      "_id fullName profilePic email"
+    );
+    if (!user) return res.status(404).json({ message: "User not found" });
+    res.json({ users: user.blockedUsers || [] });
+  } catch (err) {
+    res
+      .status(500)
+      .json({ message: "Lỗi lấy danh sách người bị chặn", error: err.message });
   }
 };

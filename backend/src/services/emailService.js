@@ -16,3 +16,7 @@ export const sendVerificationEmail = async (to, code) => {
     html: `<p>Your verification code is <strong>${code}</strong></p>`,
   });
 };
+
+export default {
+  sendVerificationEmail,
+};

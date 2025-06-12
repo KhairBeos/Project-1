@@ -1,5 +1,6 @@
 import Group from "../models/Group.js";
 import User from "../models/User.js";
+import GroupInvitation from "../models/GroupInvitation.js";
 
 // Tạo group chat (nhiều người)
 export const createGroup = async (req, res) => {
@@ -90,44 +91,27 @@ export const getMyGroups = async (req, res) => {
   }
 };
 
-// Thêm thành viên vào group
-// Khi thêm thành viên vào group, kiểm tra nếu user đã block group hoặc bị group block thì không cho thêm
-export const addMember = async (req, res) => {
+// Lấy danh sách group bị block của user (trả về đầy đủ thông tin group)
+export const getBlockedGroups = async (req, res) => {
   try {
-    const { groupId } = req.params;
-    const { userId } = req.body;
-    const group = await Group.findById(groupId);
-    if (!group) return res.status(404).json({ message: "Group không tồn tại" });
-    if (group.isDirect)
-      return res
-        .status(400)
-        .json({ message: "Không thể thêm thành viên vào chat 1-1" });
-    // Kiểm tra nếu user đã block group
+    const userId = req.user._id;
     const user = await User.findById(userId);
-    if (
-      user?.blockedGroups?.map((id) => String(id)).includes(String(groupId))
-    ) {
-      return res
-        .status(403)
-        .json({ message: "User đã chặn group này, không thể thêm vào" });
-    }
-    // Kiểm tra nếu group đã block user (nếu muốn mở rộng, có thể thêm trường blockedUsers vào Group)
-    if (
-      group.blockedMembers &&
-      group.blockedMembers.map((id) => String(id)).includes(String(userId))
-    ) {
-      return res.status(403).json({ message: "Bạn đã bị chặn khỏi group này" });
-    }
-    if (group.members.some((m) => String(m.userId) === userId)) {
-      return res.status(400).json({ message: "User đã là thành viên" });
-    }
-    group.members.push({ userId });
-    await group.save();
-    res.json({ success: true, group });
+    if (!user) return res.status(404).json({ message: "User không tồn tại" });
+    const blockedGroupIds = user.blockedGroups || [];
+    if (!blockedGroupIds.length) return res.json({ success: true, groups: [] });
+    const groups = await Group.find({ _id: { $in: blockedGroupIds } })
+      .select(
+        "_id name avatar description members type isDirect createdBy createdAt updatedAt"
+      )
+      .lean();
+    res.json({ success: true, groups });
   } catch (err) {
     res
       .status(500)
-      .json({ message: "Lỗi thêm thành viên", error: err.message });
+      .json({
+        message: "Lỗi lấy danh sách group bị block",
+        error: err.message,
+      });
   }
 };
 
@@ -141,6 +125,19 @@ export const softDeleteGroup = async (req, res) => {
       { new: true }
     );
     if (!group) return res.status(404).json({ message: "Group không tồn tại" });
+
+    // Emit socket event for realtime update to all group members
+    const io = req.app.locals.io;
+    if (io && group.members && group.members.length > 0) {
+      const memberIds = group.members.map((m) => String(m.userId));
+      memberIds.forEach((userId) => {
+        io.to(userId).emit("group_removed", {
+          groupId: String(group._id),
+          memberIds,
+        });
+      });
+    }
+
     res.json({ success: true, group });
   } catch (err) {
     res.status(500).json({ message: "Lỗi xóa group", error: err.message });
@@ -179,6 +176,34 @@ export const pinMessage = async (req, res) => {
     res.json({ success: true, group });
   } catch (err) {
     res.status(500).json({ message: "Lỗi ghim tin nhắn", error: err.message });
+  }
+};
+
+// Bỏ ghim tin nhắn
+export const unpinMessage = async (req, res) => {
+  try {
+    const { groupId } = req.params;
+    const { messageId } = req.body;
+    const group = await Group.findById(groupId);
+    if (!group) return res.status(404).json({ message: "Group không tồn tại" });
+    // Chỉ admin/owner mới được bỏ ghim
+    const admin = group.members.find(
+      (m) => String(m.userId) === String(req.user._id)
+    );
+    if (!admin || !["admin", "owner"].includes(admin.role)) {
+      return res
+        .status(403)
+        .json({ message: "Chỉ admin hoặc owner mới được phép bỏ ghim" });
+    }
+    group.pinnedMessages = (group.pinnedMessages || []).filter(
+      (id) => String(id) !== String(messageId)
+    );
+    await group.save();
+    res.json({ success: true, group });
+  } catch (err) {
+    res
+      .status(500)
+      .json({ message: "Lỗi bỏ ghim tin nhắn", error: err.message });
   }
 };
 
@@ -397,11 +422,9 @@ export const blockMember = async (req, res) => {
       (m) => String(m.userId) === String(req.user._id)
     );
     if (!admin || !["admin", "owner"].includes(admin.role)) {
-      return res
-        .status(403)
-        .json({
-          message: "Chỉ admin hoặc owner mới được phép chặn thành viên",
-        });
+      return res.status(403).json({
+        message: "Chỉ admin hoặc owner mới được phép chặn thành viên",
+      });
     }
     if (!group.blockedMembers) group.blockedMembers = [];
     if (
@@ -434,11 +457,9 @@ export const unblockMember = async (req, res) => {
       (m) => String(m.userId) === String(req.user._id)
     );
     if (!admin || !["admin", "owner"].includes(admin.role)) {
-      return res
-        .status(403)
-        .json({
-          message: "Chỉ admin hoặc owner mới được phép bỏ chặn thành viên",
-        });
+      return res.status(403).json({
+        message: "Chỉ admin hoặc owner mới được phép bỏ chặn thành viên",
+      });
     }
     group.blockedMembers = (group.blockedMembers || []).filter(
       (id) => String(id) !== String(userId)
@@ -446,11 +467,334 @@ export const unblockMember = async (req, res) => {
     await group.save();
     res.json({ success: true, blockedMembers: group.blockedMembers });
   } catch (err) {
+    res.status(500).json({
+      message: "Lỗi bỏ chặn thành viên khỏi group",
+      error: err.message,
+    });
+  }
+};
+
+// --- Group Invitation APIs ---
+// Gửi lời mời tham gia group (chỉ tạo invitation, không thêm vào group ngay)
+export const inviteMember = async (req, res) => {
+  try {
+    const { groupId } = req.params;
+    const { identifier } = req.body; // username hoặc email
+    if (!identifier)
+      return res.status(400).json({ message: "Thiếu username hoặc email" });
+    // Tìm user theo username (account) hoặc email
+    const user = await User.findOne({
+      $or: [{ account: identifier }, { email: identifier }],
+    });
+    if (!user) return res.status(404).json({ message: "Không tìm thấy user" });
+    const userId = String(user._id);
+    const group = await Group.findById(groupId);
+    if (!group) return res.status(404).json({ message: "Group không tồn tại" });
+    if (group.isDirect)
+      return res.status(400).json({ message: "Không thể mời vào chat 1-1" });
+    // Kiểm tra block
+    if (user.blockedGroups?.map((id) => String(id)).includes(String(groupId))) {
+      return res.status(403).json({ message: "User đã chặn group này" });
+    }
+    if (group.blockedMembers?.map((id) => String(id)).includes(userId)) {
+      return res.status(403).json({ message: "Bạn đã bị chặn khỏi group này" });
+    }
+    if (group.members.some((m) => String(m.userId) === userId)) {
+      return res.status(400).json({ message: "User đã là thành viên" });
+    }
+    // Kiểm tra đã có lời mời chưa
+    const existing = await GroupInvitation.findOne({
+      group: groupId,
+      user: userId,
+      status: "pending",
+    });
+    if (existing)
+      return res.status(400).json({ message: "Đã gửi lời mời trước đó" });
+    await GroupInvitation.create({
+      group: groupId,
+      user: userId,
+      invitedBy: req.user._id,
+      status: "pending",
+    });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ message: "Lỗi gửi lời mời", error: err.message });
+  }
+};
+
+// Lấy danh sách lời mời group của user (pending)
+export const getGroupInvitations = async (req, res) => {
+  try {
+    const invites = await GroupInvitation.find({
+      user: req.user._id,
+      status: "pending",
+    })
+      .populate("group", "name avatar")
+      .populate("invitedBy", "fullName profilePic");
+    res.json({ success: true, invites });
+  } catch (err) {
     res
       .status(500)
-      .json({
-        message: "Lỗi bỏ chặn thành viên khỏi group",
-        error: err.message,
+      .json({ message: "Lỗi lấy lời mời group", error: err.message });
+  }
+};
+
+// Accept lời mời group
+export const acceptGroupInvitation = async (req, res) => {
+  try {
+    const { inviteId } = req.params;
+    const invite = await GroupInvitation.findById(inviteId);
+    if (!invite || String(invite.user) !== String(req.user._id)) {
+      return res.status(404).json({ message: "Lời mời không tồn tại" });
+    }
+    if (invite.status !== "pending") {
+      return res.status(400).json({ message: "Lời mời đã xử lý" });
+    }
+    // Thêm user vào group
+    const group = await Group.findById(invite.group);
+    if (!group) return res.status(404).json({ message: "Group không tồn tại" });
+    if (group.members.some((m) => String(m.userId) === String(req.user._id))) {
+      invite.status = "accepted";
+      invite.respondedAt = new Date();
+      await invite.save();
+      return res.json({ success: true, message: "Đã là thành viên" });
+    }
+    group.members.push({ userId: req.user._id });
+    await group.save();
+    invite.status = "accepted";
+    invite.respondedAt = new Date();
+    await invite.save();
+
+    // Emit socket event for realtime update
+    const io = req.app.locals.io;
+    if (io) {
+      // Notify the invited user
+      io.to(String(invite.user)).emit("group_invite_accepted", {
+        groupId: String(group._id),
+        toUserId: String(invite.user),
+        invitedBy: String(invite.invitedBy),
       });
+      // Notify the inviter (admin/owner who sent the invite)
+      if (
+        invite.invitedBy &&
+        String(invite.invitedBy) !== String(invite.user)
+      ) {
+        io.to(String(invite.invitedBy)).emit("group_invite_accepted", {
+          groupId: String(group._id),
+          toUserId: String(invite.user),
+          invitedBy: String(invite.invitedBy),
+        });
+      }
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ message: "Lỗi accept lời mời", error: err.message });
+  }
+};
+
+// Reject lời mời group
+export const rejectGroupInvitation = async (req, res) => {
+  try {
+    const { inviteId } = req.params;
+    const invite = await GroupInvitation.findById(inviteId);
+    if (!invite || String(invite.user) !== String(req.user._id)) {
+      return res.status(404).json({ message: "Lời mời không tồn tại" });
+    }
+    if (invite.status !== "pending") {
+      return res.status(400).json({ message: "Lời mời đã xử lý" });
+    }
+    invite.status = "rejected";
+    invite.respondedAt = new Date();
+    await invite.save();
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ message: "Lỗi reject lời mời", error: err.message });
+  }
+};
+
+// Thành viên tự rời group
+export const leaveGroup = async (req, res) => {
+  try {
+    const { groupId } = req.params;
+    const userId = req.user._id;
+    const group = await Group.findById(groupId);
+    if (!group) return res.status(404).json({ message: "Group không tồn tại" });
+    const member = group.members.find(
+      (m) => String(m.userId) === String(userId)
+    );
+    if (!member)
+      return res
+        .status(404)
+        .json({ message: "Bạn không phải thành viên nhóm này" });
+    if (member.role === "owner") {
+      return res.status(400).json({
+        message:
+          "Owner không thể tự rời nhóm. Hãy chuyển quyền owner hoặc xóa nhóm.",
+      });
+    }
+    group.members = group.members.filter(
+      (m) => String(m.userId) !== String(userId)
+    );
+    await group.save();
+
+    // Emit socket event cho các thành viên khác biết user đã rời nhóm
+    const user = await User.findById(userId);
+    const io = req.app.locals.io;
+    if (io && user) {
+      io.to(groupId).emit("group_member_left", {
+        groupId,
+        userId,
+        userName: user.fullName || user.account || user.email || userId,
+        leftAt: new Date(),
+      });
+    }
+    res.json({ success: true, group });
+  } catch (err) {
+    res.status(500).json({ message: "Lỗi rời nhóm", error: err.message });
+  }
+};
+
+// --- Group Join Request APIs (user xin vào nhóm, admin duyệt) ---
+// User gửi yêu cầu xin vào nhóm
+export const requestJoinGroup = async (req, res) => {
+  try {
+    const { groupId } = req.params;
+    const userId = req.user._id;
+    const group = await Group.findById(groupId);
+    if (!group) return res.status(404).json({ message: "Group không tồn tại" });
+    if (group.isDirect)
+      return res.status(400).json({ message: "Không thể xin vào chat 1-1" });
+    if (group.members.some((m) => String(m.userId) === String(userId))) {
+      return res.status(400).json({ message: "Bạn đã là thành viên" });
+    }
+    // Kiểm tra đã có join request chưa
+    const existing = await GroupInvitation.findOne({
+      group: groupId,
+      user: userId,
+      status: "pending",
+      invitedBy: userId, // Đánh dấu là user tự xin vào
+    });
+    if (existing)
+      return res
+        .status(400)
+        .json({ message: "Đã gửi yêu cầu trước đó, vui lòng chờ duyệt" });
+    await GroupInvitation.create({
+      group: groupId,
+      user: userId,
+      invitedBy: userId, // Đánh dấu là user tự xin vào
+      status: "pending",
+      type: "join_request", // Phân biệt với lời mời admin
+    });
+    res.json({ success: true });
+  } catch (err) {
+    res
+      .status(500)
+      .json({ message: "Lỗi gửi yêu cầu vào nhóm", error: err.message });
+  }
+};
+
+// Admin lấy danh sách yêu cầu join group (pending)
+export const getJoinRequests = async (req, res) => {
+  try {
+    const { groupId } = req.params;
+    const group = await Group.findById(groupId);
+    if (!group) return res.status(404).json({ message: "Group không tồn tại" });
+    // Chỉ admin/owner mới được xem
+    const admin = group.members.find(
+      (m) => String(m.userId) === String(req.user._id)
+    );
+    if (!admin || !["admin", "owner"].includes(admin.role)) {
+      return res
+        .status(403)
+        .json({ message: "Chỉ admin hoặc owner mới được xem yêu cầu" });
+    }
+    const requests = await GroupInvitation.find({
+      group: groupId,
+      status: "pending",
+      type: "join_request",
+    }).populate("user", "fullName profilePic email");
+    res.json({ success: true, requests });
+  } catch (err) {
+    res
+      .status(500)
+      .json({ message: "Lỗi lấy yêu cầu vào nhóm", error: err.message });
+  }
+};
+
+// Admin duyệt yêu cầu join group
+export const acceptJoinRequest = async (req, res) => {
+  try {
+    const { groupId, requestId } = req.params;
+    const group = await Group.findById(groupId);
+    if (!group) return res.status(404).json({ message: "Group không tồn tại" });
+    // Chỉ admin/owner mới được duyệt
+    const admin = group.members.find(
+      (m) => String(m.userId) === String(req.user._id)
+    );
+    if (!admin || !["admin", "owner"].includes(admin.role)) {
+      return res
+        .status(403)
+        .json({ message: "Chỉ admin hoặc owner mới được duyệt" });
+    }
+    const joinReq = await GroupInvitation.findById(requestId);
+    if (
+      !joinReq ||
+      String(joinReq.group) !== String(groupId) ||
+      joinReq.status !== "pending"
+    ) {
+      return res
+        .status(404)
+        .json({ message: "Yêu cầu không tồn tại hoặc đã xử lý" });
+    }
+    // Thêm user vào group
+    if (!group.members.some((m) => String(m.userId) === String(joinReq.user))) {
+      group.members.push({ userId: joinReq.user });
+      await group.save();
+    }
+    joinReq.status = "accepted";
+    joinReq.respondedAt = new Date();
+    await joinReq.save();
+    res.json({ success: true });
+  } catch (err) {
+    res
+      .status(500)
+      .json({ message: "Lỗi duyệt yêu cầu vào nhóm", error: err.message });
+  }
+};
+
+// Admin từ chối yêu cầu join group
+export const rejectJoinRequest = async (req, res) => {
+  try {
+    const { groupId, requestId } = req.params;
+    const group = await Group.findById(groupId);
+    if (!group) return res.status(404).json({ message: "Group không tồn tại" });
+    // Chỉ admin/owner mới được từ chối
+    const admin = group.members.find(
+      (m) => String(m.userId) === String(req.user._id)
+    );
+    if (!admin || !["admin", "owner"].includes(admin.role)) {
+      return res
+        .status(403)
+        .json({ message: "Chỉ admin hoặc owner mới được từ chối" });
+    }
+    const joinReq = await GroupInvitation.findById(requestId);
+    if (
+      !joinReq ||
+      String(joinReq.group) !== String(groupId) ||
+      joinReq.status !== "pending"
+    ) {
+      return res
+        .status(404)
+        .json({ message: "Yêu cầu không tồn tại hoặc đã xử lý" });
+    }
+    joinReq.status = "rejected";
+    joinReq.respondedAt = new Date();
+    await joinReq.save();
+    res.json({ success: true });
+  } catch (err) {
+    res
+      .status(500)
+      .json({ message: "Lỗi từ chối yêu cầu vào nhóm", error: err.message });
   }
 };
